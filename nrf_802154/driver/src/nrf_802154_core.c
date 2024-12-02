@@ -172,7 +172,6 @@ static const nrf_802154_transmitted_frame_props_t m_default_frame_props =
 /***************************************************************************************************
  * @section Common core operations
  **************************************************************************************************/
-
 static rsch_prio_t min_required_rsch_prio(radio_state_t state);
 
 static void request_preconditions_for_state(radio_state_t state)
@@ -517,8 +516,20 @@ static bool ack_is_requested(const uint8_t * p_frame)
                                                     p_frame[PHR_OFFSET] + PHR_SIZE,
                                                     PARSE_LEVEL_FCF_OFFSETS,
                                                     &frame_data);
+    if (result)
+    {
+        if (nrf_802154_frame_parser_is_mp_frame(&frame_data))
+        {
+            result = nrf_802154_frame_parser_mp_ar_bit_is_set(&frame_data);
+        }
+        else
+        {
+            result = nrf_802154_frame_parser_ar_bit_is_set(&frame_data);
+        }
+    }
 
-    return result && nrf_802154_frame_parser_ar_bit_is_set(&frame_data);
+    return result;
+    // return result && nrf_802154_frame_parser_ar_bit_is_set(&frame_data);
 }
 
 /***************************************************************************************************

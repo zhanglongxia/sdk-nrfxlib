@@ -157,6 +157,34 @@ static nrf_802154_rx_error_t dst_addressing_fcf_check_2006(
 {
     nrf_802154_rx_error_t result;
 
+    if (frame_type == FRAME_TYPE_MULTIPURPOSE)
+    {
+        if (nrf_802154_frame_parser_is_mp_long_frame(p_frame_data))
+        {
+            switch (nrf_802154_frame_parser_mp_dst_addr_type_get(p_frame_data))
+            {
+                case MP_DEST_ADDR_TYPE_SHORT:
+                    result = NRF_802154_RX_ERROR_NONE;
+                    break;
+
+                case MP_DEST_ADDR_TYPE_EXTENDED:
+                    result = NRF_802154_RX_ERROR_NONE;
+                    break;
+
+                case MP_DEST_ADDR_TYPE_NONE:
+                default:
+                    result = NRF_802154_RX_ERROR_INVALID_FRAME;
+            }
+        }
+        else
+        {
+            // Do not process short multipurpose frame.
+            result = NRF_802154_RX_ERROR_INVALID_FRAME;
+        }
+
+        return result;
+    }
+
     switch (nrf_802154_frame_parser_dst_addr_type_get(p_frame_data))
     {
         case DEST_ADDR_TYPE_SHORT:
