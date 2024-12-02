@@ -1302,4 +1302,9 @@ static inline const uint8_t * nrf_802154_frame_parser_ie_vendor_thread_data_addr
            IE_VENDOR_THREAD_DATA_OFFSET;
 }
 
+bool nrf_802154_frame_parser_is_mp_frame(const nrf_802154_frame_parser_data_t * p_parser_data);
+bool nrf_802154_frame_parser_mp_ar_bit_is_set(const nrf_802154_frame_parser_data_t * p_parser_data);
+bool nrf_802154_frame_parser_is_mp_long_frame(const nrf_802154_frame_parser_data_t * p_parser_data);
+uint8_t nrf_802154_frame_parser_mp_dst_addr_type_get(const nrf_802154_frame_parser_data_t * p_parser_data);
+
 #endif // NRF_802154_FRAME_PARSER_H

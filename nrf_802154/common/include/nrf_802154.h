@@ -1636,6 +1636,88 @@ void nrf_802154_test_mode_csmaca_backoff_set(nrf_802154_test_mode_csmaca_backoff
 
 #endif // NRF_802154_TEST_MODES_ENABLED
 
+
+#define LOG_TYPE_RX    0
+#define LOG_TYPE_RX_MP 1
+#define LOG_TP1 1
+#define LOG_TP2 2
+#define LOG_TP3 3
+#define LOG_TP4 4
+#define LOG_TP5 5
+#define LOG_TP6 6
+#define LOG_TP7 7
+#define LOG_TP8 8
+#define LOG_TP9 9
+#define LOG_TP10 10
+#define LOG_TP11 11
+#define LOG_TP12 12
+#define LOG_TP13 13
+#define LOG_TP14 14
+#define LOG_TP15 15
+#define LOG_TP16 16
+
+#define LOG_TP20 20
+#define LOG_TP21 21
+#define LOG_TP22 22
+#define LOG_TP23 23
+#define LOG_TP24 24
+#define LOG_TP25 25
+#define LOG_TP26 26
+#define LOG_TP27 27
+#define LOG_TP28 28
+#define LOG_TP29 29
+
+
+#define LOG_TP30 30
+#define LOG_TP31 31
+#define LOG_TP32 32
+#define LOG_TP33 33
+#define LOG_TP34 34
+#define LOG_TP35 35
+#define LOG_TP36 36
+#define LOG_TP37 37
+#define LOG_TP38 38
+#define LOG_TP39 39
+
+#define LOG_TP40 40
+#define LOG_TP41 41
+#define LOG_TP42 42
+#define LOG_TP43 43
+#define LOG_TP44 44
+
+#define LOG_TP45 45
+#define LOG_TP46 46
+#define LOG_TP47 47
+
+typedef struct nrf_log
+{
+    uint8_t m_log_type;
+    uint8_t m_is_mp;
+    uint8_t m_prev_level;
+    uint8_t m_parse_level;
+
+    uint8_t m_dst_ext_addr_check;
+    uint8_t m_dst_ext_addr[8];
+    uint8_t m_local_ext_addr[8];
+    uint8_t m_dst_addr_offset;
+    uint8_t m_dst_panid_check;
+    uint8_t m_dst_panid[2];
+    uint8_t m_local_panid[2];
+    uint8_t m_dst_panid_offset;
+    uint8_t m_num_core_logs;
+    uint8_t m_core_logs[50];
+    uint8_t m_psdu_len;
+    uint8_t m_psdu[128];
+} nrf_log_t;
+
+extern nrf_log_t g_nrf_log;
+
+void nrf_802154_log_init(void);
+
+
+typedef void (*nrf_log_callback_t)(nrf_log_t *p_nrf_log);
+void nrf_802154_core_set_log_callback(nrf_log_callback_t p_callback);
+
 /** @} */
 
 #ifdef __cplusplus

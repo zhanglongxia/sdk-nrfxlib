@@ -46,10 +46,117 @@
 
 #include "nrf_802154_const.h"
 #include "nrf_802154_utils_byteorder.h"
+#include "nrf_802154.h"
 
 /***************************************************************************************************
  * @section Helper functions
  **************************************************************************************************/
+
+bool is_mp_long_frame(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_LONG_FRAME_OFFSET] & MP_LONG_FRAME_MASK) ? true: false;
+}
+
+static bool is_mp_frame(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[FRAME_TYPE_OFFSET] & FRAME_TYPE_MASK) == FRAME_TYPE_MULTIPURPOSE;
+}
+
+static bool mp_dst_panid_is_present(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_DST_PANID_PRESENT_OFFSET] & MP_DST_PANID_PRESENT_BIT) ? true: false;
+}
+
+static bool mp_security_is_enabled(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return p_parser_data->p_frame[MP_SECURITY_ENABLED_OFFSET] & MP_SECURITY_ENABLED_BIT ? true : false;
+}
+
+bool nrf_802154_frame_parser_is_mp_frame(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    //return (is_mp_frame(p_parser_data) && is_mp_long_frame(p_parser_data));
+    return is_mp_frame(p_parser_data);
+}
+
+bool nrf_802154_frame_parser_is_mp_long_frame(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_LONG_FRAME_OFFSET] & MP_LONG_FRAME_MASK) ? true: false;
+}
+
+uint8_t nrf_802154_frame_parser_mp_dst_addr_type_get(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return p_parser_data->p_frame[MP_DEST_ADDR_TYPE_OFFSET] & MP_DEST_ADDR_TYPE_MASK;
+}
+
+static uint8_t nrf_802154_frame_parser_mp_src_addr_type_get(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return p_parser_data->p_frame[MP_SRC_ADDR_TYPE_OFFSET] & MP_SRC_ADDR_TYPE_MASK;
+}
+
+static bool nrf_802154_frame_parser_mp_dsn_suppress_bit_is_set(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_DSN_SUPPRESS_OFFSET] & MP_DSN_SUPPRESS_BIT) ? true : false;
+}
+
+static bool nrf_802154_frame_parser_mp_ie_present_bit_is_set(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_IE_PRESENT_OFFSET] & MP_IE_PRESENT_BIT) ? true : false;
+}
+
+bool nrf_802154_frame_parser_mp_ar_bit_is_set(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return (p_parser_data->p_frame[MP_ACK_REQUEST_OFFSET] & MP_ACK_REQUEST_BIT) ? true : false;
+}
+
+static bool mp_src_addr_is_present(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return nrf_802154_frame_parser_mp_src_addr_type_get(p_parser_data) != MP_SRC_ADDR_TYPE_NONE;
+}
+
+static uint8_t mp_src_addr_size_get(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    uint8_t addr_type = nrf_802154_frame_parser_mp_src_addr_type_get(p_parser_data);
+
+    switch (addr_type)
+    {
+        case MP_SRC_ADDR_TYPE_NONE:
+            return 0;
+
+        case MP_SRC_ADDR_TYPE_SHORT:
+            return SHORT_ADDRESS_SIZE;
+
+        case MP_SRC_ADDR_TYPE_EXTENDED:
+            return EXTENDED_ADDRESS_SIZE;
+
+        default:
+            return NRF_802154_FRAME_PARSER_INVALID_OFFSET;
+    }
+}
+
+static bool mp_dst_addr_is_present(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    return nrf_802154_frame_parser_mp_dst_addr_type_get(p_parser_data) != MP_DEST_ADDR_TYPE_NONE;
+}
+
+static uint8_t mp_dst_addr_size_get(const nrf_802154_frame_parser_data_t * p_parser_data)
+{
+    uint8_t addr_type = nrf_802154_frame_parser_mp_dst_addr_type_get(p_parser_data);
+
+    switch (addr_type)
+    {
+        case MP_DEST_ADDR_TYPE_NONE:
+            return 0;
+
+        case MP_DEST_ADDR_TYPE_SHORT:
+            return SHORT_ADDRESS_SIZE;
+
+        case MP_DEST_ADDR_TYPE_EXTENDED:
+            return EXTENDED_ADDRESS_SIZE;
+
+        default:
+            return NRF_802154_FRAME_PARSER_INVALID_OFFSET;
+    }
+}
 
 // Addressing
 
@@ -237,12 +344,69 @@ static bool fcf_parse(nrf_802154_frame_parser_data_t * p_parser_data)
     uint8_t offset = PHR_SIZE + FCF_SIZE;
     uint8_t addr_size;
 
+    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP30;
     if (offset > p_parser_data->valid_data_len)
     {
         // Not enough valid data to parse the FCF
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP31;
         return false;
     }
+#if 1
+    if (nrf_802154_frame_parser_is_mp_frame(p_parser_data))
+    {
+        if (nrf_802154_frame_parser_mp_dsn_suppress_bit_is_set(p_parser_data) == false)
+        {
+            offset += DSN_SIZE;
+        }
 
+        if (mp_dst_panid_is_present(p_parser_data))
+        {
+            p_parser_data->mhr.dst.panid_offset = offset;
+            offset                             += PAN_ID_SIZE;
+        }
+
+        if (mp_dst_addr_is_present(p_parser_data))
+        {
+            p_parser_data->mhr.dst.addr_offset = offset;
+        }
+
+        addr_size = mp_dst_addr_size_get(p_parser_data);
+
+        if (addr_size == NRF_802154_FRAME_PARSER_INVALID_OFFSET)
+        {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP32;
+            return false;
+        }
+
+        p_parser_data->helper.dst_addr_size             = addr_size;
+        offset                                         += addr_size;
+        p_parser_data->helper.dst_addressing_end_offset = offset;
+
+        if (mp_dst_panid_is_present(p_parser_data))
+        {
+            p_parser_data->mhr.src.panid_offset = p_parser_data->mhr.dst.panid_offset;
+        }
+
+        if (mp_src_addr_is_present(p_parser_data))
+        {
+            p_parser_data->mhr.src.addr_offset = offset;
+        }
+
+        addr_size = mp_src_addr_size_get(p_parser_data);
+        if (addr_size == NRF_802154_FRAME_PARSER_INVALID_OFFSET)
+        {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP33;
+            return false;
+        }
+
+        p_parser_data->helper.src_addr_size = addr_size;
+        offset                             += addr_size;
+
+        p_parser_data->helper.addressing_end_offset = offset;
+    }
+    else
+#endif
+    {
     if (nrf_802154_frame_parser_dsn_suppress_bit_is_set(p_parser_data) == false)
     {
         offset += DSN_SIZE;
@@ -263,6 +427,7 @@ static bool fcf_parse(nrf_802154_frame_parser_data_t * p_parser_data)
 
     if (addr_size == NRF_802154_FRAME_PARSER_INVALID_OFFSET)
     {
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP34;
         return false;
     }
 
@@ -285,6 +450,7 @@ static bool fcf_parse(nrf_802154_frame_parser_data_t * p_parser_data)
 
     if (addr_size == NRF_802154_FRAME_PARSER_INVALID_OFFSET)
     {
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP35;
         return false;
     }
 
@@ -292,7 +458,9 @@ static bool fcf_parse(nrf_802154_frame_parser_data_t * p_parser_data)
     offset                             += addr_size;
 
     p_parser_data->helper.addressing_end_offset = offset;
+    }
 
+    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP36;
     return true;
 }
 
@@ -301,11 +469,23 @@ static bool sec_ctrl_parse(nrf_802154_frame_parser_data_t * p_parser_data)
     uint8_t offset = p_parser_data->helper.addressing_end_offset;
     uint8_t key_id_mode;
     uint8_t key_src_size;
-
+#if 1
+    if (nrf_802154_frame_parser_is_mp_frame(p_parser_data))
+    {
+        if (mp_security_is_enabled(p_parser_data) == false)
+        {
+            p_parser_data->helper.aux_sec_hdr_end_offset = offset;
+            return true;
+        }
+    }
+    else
+#endif
+    {
     if (nrf_802154_frame_parser_security_enabled_bit_is_set(p_parser_data) == false)
     {
         p_parser_data->helper.aux_sec_hdr_end_offset = offset;
         return true;
+    }
     }
 
     if ((offset + SECURITY_CONTROL_SIZE) > p_parser_data->valid_data_len)
@@ -353,14 +533,25 @@ static bool full_parse(nrf_802154_frame_parser_data_t * p_parser_data)
     const uint8_t * p_ie_header;
     const uint8_t * p_end_addr;
     const uint8_t * p_iterator;
+    bool            ie_present;
 
     if (((psdu_length + PHR_SIZE) != p_parser_data->valid_data_len) ||
         (psdu_length > MAX_PACKET_SIZE))
     {
         return false;
     }
+#if 1
+    if (nrf_802154_frame_parser_is_mp_frame(p_parser_data))
+    {
+        ie_present = nrf_802154_frame_parser_mp_ie_present_bit_is_set(p_parser_data);
+    }
+    else
+#endif
+    {
+        ie_present = nrf_802154_frame_parser_ie_present_bit_is_set(p_parser_data);
+    }
 
-    if (nrf_802154_frame_parser_ie_present_bit_is_set(p_parser_data))
+    if (ie_present)
     {
         p_parser_data->mhr.header_ie_offset = offset;
 
@@ -426,6 +617,7 @@ static bool parse_state_advance(nrf_802154_frame_parser_data_t * p_parser_data,
             case PARSE_LEVEL_NONE:
                 if (level_is_elevated(p_parser_data, requested_parse_level))
                 {
+                    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP20;
                     result     = fcf_parse(p_parser_data);
                     next_level = PARSE_LEVEL_FCF_OFFSETS;
                 }
@@ -435,6 +627,7 @@ static bool parse_state_advance(nrf_802154_frame_parser_data_t * p_parser_data,
                 if (p_parser_data->valid_data_len >=
                     p_parser_data->helper.dst_addressing_end_offset)
                 {
+                    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP21;
                     result     = true;
                     next_level = PARSE_LEVEL_DST_ADDRESSING_END;
                 }
@@ -483,6 +676,7 @@ static bool parse_state_advance(nrf_802154_frame_parser_data_t * p_parser_data,
         if (result)
         {
             p_parser_data->parse_level = next_level;
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP22;
         }
     }
     while (result);

@@ -157,6 +157,39 @@ static nrf_802154_rx_error_t dst_addressing_fcf_check_2006(
 {
     nrf_802154_rx_error_t result;
 
+#if 1
+    if (frame_type == FRAME_TYPE_MULTIPURPOSE)
+    {
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP45;
+        if (nrf_802154_frame_parser_is_mp_long_frame(p_frame_data))
+        {
+            switch (nrf_802154_frame_parser_mp_dst_addr_type_get(p_frame_data))
+            {
+                case MP_DEST_ADDR_TYPE_SHORT:
+                    result = NRF_802154_RX_ERROR_NONE;
+                    break;
+  
+                case MP_DEST_ADDR_TYPE_EXTENDED:
+                    result = NRF_802154_RX_ERROR_NONE;
+                    break;
+  
+                case MP_DEST_ADDR_TYPE_NONE:
+                    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP46;
+                default:
+                    result = NRF_802154_RX_ERROR_INVALID_FRAME;
+            }
+        }
+        else
+        {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP47;
+            // Do not process short multipurpose frame.
+            result = NRF_802154_RX_ERROR_INVALID_FRAME;
+        }
+
+        return result;
+    }
+#endif
+
     switch (nrf_802154_frame_parser_dst_addr_type_get(p_frame_data))
     {
         case DEST_ADDR_TYPE_SHORT:
@@ -447,16 +480,19 @@ nrf_802154_rx_error_t nrf_802154_filter_frame_part(
 
         if ((psdu_length < IMM_ACK_LENGTH) || (psdu_length > MAX_PACKET_SIZE))
         {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP40;
             return NRF_802154_RX_ERROR_INVALID_LENGTH;
         }
 
         if (!frame_type_and_version_filter(frame_type, frame_version))
         {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP41;
             return NRF_802154_RX_ERROR_INVALID_FRAME;
         }
 
         if (dst_addressing_may_be_present(frame_type))
         {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP42;
             result = dst_addressing_fcf_check(p_frame_data,
                                               frame_type,
                                               frame_version);
@@ -465,6 +501,7 @@ nrf_802154_rx_error_t nrf_802154_filter_frame_part(
 
     if (result != NRF_802154_RX_ERROR_NONE)
     {
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP43;
         return result;
     }
 
@@ -474,6 +511,7 @@ nrf_802154_rx_error_t nrf_802154_filter_frame_part(
                               p_frame_data) >= PARSE_LEVEL_DST_ADDRESSING_END);
 
         result = dst_addr_check(p_frame_data);
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP44;
     }
 
     return result;

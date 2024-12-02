@@ -172,6 +172,18 @@ static const nrf_802154_transmitted_frame_props_t m_default_frame_props =
 /***************************************************************************************************
  * @section Common core operations
  **************************************************************************************************/
+nrf_log_callback_t m_log_callback =NULL;
+
+void nrf_802154_core_set_log_callback(nrf_log_callback_t p_callback) {
+    m_log_callback = p_callback;
+}
+
+void nrf_802154_core_log_output(void) {
+   if (m_log_callback != NULL)
+   {
+       m_log_callback(&g_nrf_log);
+   }
+}
 
 static rsch_prio_t min_required_rsch_prio(radio_state_t state);
 
@@ -215,6 +227,11 @@ static void rx_data_clear(void)
                                             0U,
                                             PARSE_LEVEL_NONE,
                                             &m_current_rx_frame_data);
+
+    //nrf_802154_log_init();
+
+    //g_nrf_log.m_log_type = LOG_TYPE_RX;
+    //g_nrf_log.m_num_core_logs = 0;
 }
 
 /** Clear flags describing frame being received. */
@@ -517,7 +534,21 @@ static bool ack_is_requested(const uint8_t * p_frame)
                                                     p_frame[PHR_OFFSET] + PHR_SIZE,
                                                     PARSE_LEVEL_FCF_OFFSETS,
                                                     &frame_data);
+#if 1
+    if (result)
+    {
+        if (nrf_802154_frame_parser_is_mp_frame(&frame_data))
+        {
+            result = nrf_802154_frame_parser_mp_ar_bit_is_set(&frame_data);
+        }
+        else
+        {
+            result = nrf_802154_frame_parser_ar_bit_is_set(&frame_data);
+        }
+    }
 
+    return result;
+#endif
     return result && nrf_802154_frame_parser_ar_bit_is_set(&frame_data);
 }
 
@@ -1761,6 +1792,17 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
 
     NRF_802154_ASSERT(m_state == RADIO_STATE_RX);
 
+    g_nrf_log.m_log_type = LOG_TYPE_RX;
+    g_nrf_log.m_num_core_logs = 0;
+    g_nrf_log.m_psdu_len = 0;
+
+    if (nrf_802154_frame_parser_is_mp_frame(&m_current_rx_frame_data))
+    {
+        g_nrf_log.m_is_mp = 1;
+    }
+
+    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP1;
+
     switch (prev_level)
     {
         case PARSE_LEVEL_NONE:
@@ -1819,6 +1861,7 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
         }
     }
 
+    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP5;
     if (nrf_802154_pib_promiscuous_get())
     {
         /*
@@ -1835,6 +1878,7 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
 
     if (filter_result != NRF_802154_RX_ERROR_NONE)
     {
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP6;
         nrf_802154_trx_abort();
         rx_init(TRX_RAMP_UP_SW_TRIGGER, NULL);
 
@@ -1847,6 +1891,9 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
         }
 
         nrf_802154_log_function_exit(NRF_802154_LOG_VERBOSITY_LOW);
+        g_nrf_log.m_psdu_len = bcc > 30 ? 30: bcc;
+        memcpy(g_nrf_log.m_psdu, m_current_rx_frame_data.p_frame, g_nrf_log.m_psdu_len);
+        nrf_802154_core_log_output();
         return 0;
     }
 
@@ -1872,20 +1919,24 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
             break;
     }
 
+    g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP7;
     if (!m_flags.rx_timeslot_requested)
     {
         uint16_t duration = nrf_802154_rx_duration_get(
             mp_current_rx_buffer->data[0],
             nrf_802154_frame_parser_ar_bit_is_set(&m_current_rx_frame_data));
 
+        g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP8;
         if (nrf_802154_rsch_timeslot_request(duration))
         {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP9;
             m_flags.rx_timeslot_requested = true;
 
             receive_started_notify();
         }
         else
         {
+            g_nrf_log.m_core_logs[g_nrf_log.m_num_core_logs++] = LOG_TP10;
             // Disable receiver and wait for a new timeslot.
             nrf_802154_trx_abort();
 
@@ -1910,6 +1961,10 @@ uint8_t nrf_802154_trx_receive_frame_bcmatched(uint8_t bcc)
     }
 
     nrf_802154_log_function_exit(NRF_802154_LOG_VERBOSITY_LOW);
+
+    g_nrf_log.m_psdu_len = m_current_rx_frame_data.valid_data_len;
+    memcpy(g_nrf_log.m_psdu, m_current_rx_frame_data.p_frame, g_nrf_log.m_psdu_len);
+    nrf_802154_core_log_output();
 
     return next_bcc;
 }

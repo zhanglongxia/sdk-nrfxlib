@@ -1264,3 +1264,10 @@ void nrf_802154_test_mode_csmaca_backoff_set(nrf_802154_test_mode_csmaca_backoff
 }
 
 #endif // NRF_802154_TEST_MODES_ENABLED
+
+nrf_log_t g_nrf_log;
+
+void nrf_802154_log_init(void) {
+    memset(&g_nrf_log, 0, sizeof(g_nrf_log));
+}
+
